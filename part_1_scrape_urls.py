@@ -2,16 +2,22 @@ import time
 import json
 import os
 import asyncio
+import sys
+import io
 
 from playwright.async_api import async_playwright
 
-# 🔧 CONFIGURATION FROM ENVIRONMENT VARIABLES
+# Fix Unicode encoding for Windows compatibility
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# CONFIGURATION FROM ENVIRONMENT VARIABLES
 INSTAGRAM_USERNAME = os.getenv('INSTAGRAM_USERNAME', '')
 INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD', '')
 
 
-# 📋 LIST OF TARGET USERS (Maximum 10) - can be passed as argument
-import sys
+# LIST OF TARGET USERS (Maximum 10) - can be passed as argument
 import argparse
 
 TARGET_USERS = [
@@ -25,7 +31,7 @@ SESSION_FILE = 'instagram_session.json'
 MAX_SCROLL_ATTEMPTS = 50
 SCROLL_WAIT_TIME = 2
 
-# 📁 Create output folder for URLs
+# Create output folder for URLs
 os.makedirs("reel_urls", exist_ok=True)
 
 async def save_storage_state(context):

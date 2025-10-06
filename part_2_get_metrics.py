@@ -2,18 +2,25 @@ import instaloader
 import csv
 import os
 import glob
+import sys
+import io
 from datetime import datetime
 from apify_client import ApifyClient
 
-# 🔧 CONFIGURATION FROM ENVIRONMENT VARIABLES
+# Fix Unicode encoding for Windows compatibility
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# CONFIGURATION FROM ENVIRONMENT VARIABLES
 APIFY_TOKEN = os.getenv('APIFY_TOKEN', '')
 INSTALOADER_SESSION = os.getenv('INSTALOADER_SESSION', 'zebra.4500860')
 
-# 📁 Ensure output folders exist
+# Ensure output folders exist
 os.makedirs("data", exist_ok=True)
 os.makedirs("reel_urls", exist_ok=True)
 
-# 📅 Timestamp
+# Timestamp
 now = datetime.now()
 timestamp = now.strftime('%Y-%m-%d %H:%M')
 
