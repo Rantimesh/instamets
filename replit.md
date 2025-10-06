@@ -8,7 +8,28 @@ The application consists of two main components:
 1. **Python Scrapers**: Automated scripts using Playwright and Apify to collect Instagram data
 2. **Web Dashboard**: React/TypeScript SPA for visualizing metrics and managing scraper operations
 
-**Current Status**: Dashboard displays real analytics data from CSV files (she_is_ada_, 5thkind_) including 7 reels with actual views, likes, comments, captions, and hashtags. All pages show real data with transparent messaging for unavailable metrics (follower demographics, detailed run history).
+**Current Status**: ✅ Fully configured and running on Replit (October 6, 2025). Dashboard displays real analytics data from CSV files (she_is_ada_, 5thkind_) including 7 reels with actual views, likes, comments, captions, and hashtags. All pages show real data with transparent messaging for unavailable metrics (follower demographics, detailed run history).
+
+## Recent Changes
+
+**October 6, 2025 - Replit Environment Setup**:
+- ✅ Installed Node.js 20 and Python 3.11
+- ✅ Installed all npm dependencies (478 packages)
+- ✅ Installed Python dependencies (playwright, instaloader, apify-client)
+- ✅ Installed Playwright Chromium browser
+- ✅ Configured workflow to run on port 5000
+- ✅ Verified frontend proxy support (allowedHosts: true)
+- ✅ Configured deployment for Autoscale
+- ✅ Created .gitignore for Node.js and Python
+- ✅ Dashboard verified working with real data from CSV files
+
+**October 6, 2025 - Performance & Scalability Improvements for 10+ Creators**:
+- ✅ Expanded color palette from 5 to 12 unique colors (chart-1 through chart-12)
+- ✅ Added interactive toggle functionality to show/hide creator lines in charts
+- ✅ Implemented server-side caching system with file modification tracking
+- ✅ Added API filtering with ?creator= query parameter for /api/reels and /api/followers
+- ✅ Cache automatically invalidates when CSV files are updated or scraper completes
+- ✅ TTL-based cache expiration (5 minutes default) for fresh data
 
 ## User Preferences
 
@@ -179,12 +200,14 @@ The application has a complete PostgreSQL schema defined but not currently in us
 
 ### Environment Configuration
 
-Required secrets/environment variables:
+Required secrets/environment variables (configure via Replit Secrets):
 - `INSTAGRAM_USERNAME`: Instagram login username
 - `INSTAGRAM_PASSWORD`: Instagram login password
 - `APIFY_TOKEN`: API key for Apify service
 - `INSTALOADER_SESSION`: Instagram username for session file
 - `DATABASE_URL`: PostgreSQL connection string (for future database migration)
+
+**Note**: The scraper functionality requires these secrets to be configured. The dashboard will work without them, displaying existing CSV data. To use the scraping features, add these secrets in the Replit Secrets panel.
 
 ### Infrastructure
 
