@@ -3,8 +3,14 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { runScraper, getScraperStatus } from "./scraper";
 import { findCSVFiles, parseCSV, extractInstagramId, parseFollowerData } from "./csv-ingestion";
+import { dataCache } from "./cache";
 import { z } from "zod";
 import { scraperConfigSchema, instagramCredentialsSchema } from "@shared/schema";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/scrape/run", async (req, res) => {
@@ -37,15 +43,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/reels", async (req, res) => {
     try {
-      const csvFiles = await findCSVFiles();
-      const allReels: any[] = [];
+      const creator = req.query.creator as string | undefined;
+      const cacheKey = creator ? `reels:${creator}` : 'reels:all';
+      
+      const allReels = await dataCache.get(
+        cacheKey,
+        async () => {
+          const csvFiles = await findCSVFiles();
+          const reels: any[] = [];
 
-      for (const file of csvFiles) {
-        const reels = await parseCSV(file);
-        allReels.push(...reels);
-      }
+          for (const file of csvFiles) {
+            const fileReels = await parseCSV(file);
+            reels.push(...fileReels);
+          }
 
-      res.json(allReels);
+          return reels;
+        },
+        await findCSVFiles()
+      );
+
+      // Filter by creator if specified
+      const filteredReels = creator 
+        ? allReels.filter((reel: any) => reel.username === creator)
+        : allReels;
+
+      res.json(filteredReels);
     } catch (error) {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to fetch reels" 
@@ -55,19 +77,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creators", async (req, res) => {
     try {
-      const csvFiles = await findCSVFiles();
-      const creators = new Set<string>();
+      const creators = await dataCache.get(
+        'creators:all',
+        async () => {
+          const csvFiles = await findCSVFiles();
+          const creatorSet = new Set<string>();
 
-      for (const file of csvFiles) {
-        const reels = await parseCSV(file);
-        reels.forEach(reel => {
-          if (reel.username) {
-            creators.add(reel.username);
+          for (const file of csvFiles) {
+            const reels = await parseCSV(file);
+            reels.forEach(reel => {
+              if (reel.username) {
+                creatorSet.add(reel.username);
+              }
+            });
           }
-        });
-      }
 
-      res.json(Array.from(creators).map(username => ({ username })));
+          return Array.from(creatorSet).map(username => ({ username }));
+        },
+        await findCSVFiles()
+      );
+
+      res.json(creators);
     } catch (error) {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to fetch creators" 
@@ -77,8 +107,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/followers", async (req, res) => {
     try {
-      const followerData = await parseFollowerData();
-      res.json(followerData);
+      const creator = req.query.creator as string | undefined;
+      
+      const followerData = await dataCache.get(
+        'followers:all',
+        async () => await parseFollowerData(),
+        [path.resolve(__dirname, '..', '..', 'data', 'scrape_history.csv')]
+      );
+
+      // Filter by creator if specified
+      const filteredData = creator
+        ? followerData.filter((f: any) => f.username === creator)
+        : followerData;
+
+      res.json(filteredData);
     } catch (error) {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to fetch follower data" 

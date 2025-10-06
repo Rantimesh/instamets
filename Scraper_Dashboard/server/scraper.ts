@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dataCache } from './cache';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,9 @@ export async function runScraper(usernames: string[]): Promise<void> {
 
     currentRun.status = 'completed';
     currentRun.logs.push('Scraping completed successfully');
+    
+    // Invalidate cache to force fresh data on next request
+    dataCache.invalidateAll();
   } catch (error) {
     if (currentRun) {
       currentRun.status = 'failed';

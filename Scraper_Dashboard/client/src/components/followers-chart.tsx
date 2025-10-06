@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useState } from 'react';
 
 interface FollowersChartProps {
   timeFilter: string;
@@ -17,6 +18,12 @@ export default function FollowersChart({ timeFilter, selectedCreator }: Follower
   const { data: followerData = [] } = useQuery<FollowerData[]>({
     queryKey: ['/api/followers'],
   });
+
+  const allCreators = selectedCreator 
+    ? [selectedCreator]
+    : Array.from(new Set(followerData.map(d => d.username)));
+
+  const [hiddenCreators, setHiddenCreators] = useState<Set<string>>(new Set());
 
   const filteredData = selectedCreator 
     ? followerData.filter(c => c.username === selectedCreator)
@@ -38,26 +45,64 @@ export default function FollowersChart({ timeFilter, selectedCreator }: Follower
     return dataPoint;
   });
 
-  const creatorsToShow = selectedCreator 
-    ? [selectedCreator]
-    : Array.from(new Set(followerData.map(d => d.username)));
+  const creatorsToShow = allCreators.filter(creator => !hiddenCreators.has(creator));
 
-  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#a28bfe'];
+  const getChartColor = (index: number): string => {
+    const colorVars = [
+      'hsl(var(--chart-1))',
+      'hsl(var(--chart-2))',
+      'hsl(var(--chart-3))',
+      'hsl(var(--chart-4))',
+      'hsl(var(--chart-5))',
+      'hsl(var(--chart-6))',
+      'hsl(var(--chart-7))',
+      'hsl(var(--chart-8))',
+      'hsl(var(--chart-9))',
+      'hsl(var(--chart-10))',
+      'hsl(var(--chart-11))',
+      'hsl(var(--chart-12))',
+    ];
+    return colorVars[index % colorVars.length];
+  };
+
+  const toggleCreator = (creator: string) => {
+    const newHidden = new Set(hiddenCreators);
+    if (newHidden.has(creator)) {
+      newHidden.delete(creator);
+    } else {
+      newHidden.add(creator);
+    }
+    setHiddenCreators(newHidden);
+  };
 
   return (
     <div className="bg-card rounded-lg border border-border p-6" data-testid="followers-chart">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Follower Growth Over Time</h3>
-        <div className="flex items-center gap-3">
-          {creatorsToShow.map((creator, index) => (
-            <div key={creator} className="flex items-center gap-1">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: colors[index % colors.length] }}
-              ></div>
-              <span className="text-xs text-muted-foreground">@{creator}</span>
-            </div>
-          ))}
+        <div className="flex items-center gap-3 flex-wrap max-w-2xl">
+          {allCreators.map((creator, index) => {
+            const isHidden = hiddenCreators.has(creator);
+            return (
+              <button
+                key={creator}
+                onClick={() => toggleCreator(creator)}
+                className="flex items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
+              >
+                <div 
+                  className="w-3 h-3 rounded-full transition-opacity" 
+                  style={{ 
+                    backgroundColor: getChartColor(index),
+                    opacity: isHidden ? 0.3 : 1 
+                  }}
+                ></div>
+                <span 
+                  className={`text-xs ${isHidden ? 'text-muted-foreground/50 line-through' : 'text-muted-foreground'}`}
+                >
+                  @{creator}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       
@@ -81,17 +126,20 @@ export default function FollowersChart({ timeFilter, selectedCreator }: Follower
             }}
             labelStyle={{ color: 'hsl(var(--foreground))' }}
           />
-          {creatorsToShow.map((creator, index) => (
-            <Line 
-              key={creator}
-              type="monotone" 
-              dataKey={creator} 
-              stroke={colors[index % colors.length]}
-              strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          ))}
+          {creatorsToShow.map((creator, index) => {
+            const creatorIndex = allCreators.indexOf(creator);
+            return (
+              <Line 
+                key={creator}
+                type="monotone" 
+                dataKey={creator} 
+                stroke={getChartColor(creatorIndex)}
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            );
+          })}
         </LineChart>
       </ResponsiveContainer>
 
