@@ -2,24 +2,20 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import CreatorSelector from "@/components/creator-selector";
 import Sidebar from "@/components/sidebar";
 import ThemeToggle from "@/components/theme-toggle";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { filterReelsByDate } from "@/lib/dateFilter";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface ReelData {
   username: string;
@@ -37,6 +33,10 @@ export default function VideoTagging() {
   const [videoType, setVideoType] = useState("");
   const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState("all");
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: reels = [] } = useQuery<ReelData[]>({
     queryKey: ['/api/reels'],
@@ -48,10 +48,54 @@ export default function VideoTagging() {
     filteredReels = filteredReels.filter(r => r.username === selectedCreator);
   }
 
-  const handleTagReel = () => {
-    console.log(`Tagging reel ${selectedReel?.url} as ${videoType}`);
-    setSelectedReel(null);
-    setVideoType("");
+  // Extract previously used tags from all reels
+  const previousTags = Array.from(
+    new Set(
+      reels
+        .map(r => (r as any).manual_tags || (r as any).manualTags)
+        .filter(Boolean)
+        .flatMap((tag: string) => tag.split(',').map(t => t.trim()))
+        .filter(Boolean)
+    )
+  ).sort();
+
+  const handleTagReel = async () => {
+    if (!selectedReel || !videoType) return;
+    
+    setIsSaving(true);
+    try {
+      const encodedUrl = encodeURIComponent(selectedReel.url);
+      const response = await fetch(`/api/reels/${encodedUrl}/tag`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag: videoType })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Tag saved successfully",
+        });
+        
+        // Refresh the reels data
+        queryClient.invalidateQueries({ queryKey: ['/api/reels'] });
+        
+        setSelectedReel(null);
+        setVideoType("");
+      } else {
+        throw new Error(data.error || 'Failed to save tag');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save tag",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const formatNumber = (num: number) => {
@@ -110,7 +154,7 @@ export default function VideoTagging() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {filteredReels.map((reel, index) => (
-          <Card key={reel.url || index} className="overflow-hidden">
+          <Card key={`${reel.url || ''}-${reel.username}-${index}`} className="overflow-hidden">
             <div className="relative aspect-[9/16] bg-muted flex items-center justify-center overflow-hidden">
               {reel.videoUrl ? (
                 <video 
@@ -177,24 +221,54 @@ export default function VideoTagging() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">{selectedReel?.caption || 'No caption'}</p>
-            <Select value={videoType} onValueChange={setVideoType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select video type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Educational">Educational</SelectItem>
-                <SelectItem value="Entertainment">Entertainment</SelectItem>
-                <SelectItem value="Behind the Scenes">Behind the Scenes</SelectItem>
-                <SelectItem value="Product Demo">Product Demo</SelectItem>
-                <SelectItem value="Lifestyle">Lifestyle</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label htmlFor="video-tag">Video Tag</Label>
+              <Input
+                id="video-tag"
+                value={videoType}
+                onChange={(e) => setVideoType(e.target.value)}
+                placeholder="Type a tag or select from previous tags below"
+                list="previous-tags"
+              />
+              <datalist id="previous-tags">
+                {previousTags.map((tag) => (
+                  <option key={tag} value={tag} />
+                ))}
+              </datalist>
+              {previousTags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <p className="text-xs text-muted-foreground w-full">Quick select from previous tags:</p>
+                  {previousTags.slice(0, 8).map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                      onClick={() => setVideoType(tag)}
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Type any tag to categorize this video
+              </p>
+            </div>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setSelectedReel(null)}>
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => setSelectedReel(null)}
+                disabled={isSaving}
+              >
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={handleTagReel} disabled={!videoType}>
-                Save Tag
+              <Button 
+                className="flex-1" 
+                onClick={handleTagReel} 
+                disabled={!videoType || isSaving}
+              >
+                {isSaving ? "Saving..." : "Save Tag"}
               </Button>
             </div>
           </div>
