@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dataCache } from './cache';
+import { storage } from './storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,14 +70,32 @@ export async function runScraper(usernames: string[]): Promise<void> {
   }
 }
 
-function runPythonScript(
+async function runPythonScript(
   scriptPath: string,
   usernames: string[],
   onData: (data: string) => void
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const args = usernames.length > 0 ? ['--users', ...usernames] : [];
-    const pythonProcess = spawn('python3', [scriptPath, ...args]);
+    
+    // Get credentials from storage and set as environment variables
+    const credentials = await storage.getCredentials();
+    const env = { ...process.env };
+    
+    if (credentials) {
+      env.INSTAGRAM_USERNAME = credentials.instagramUsername;
+      env.INSTAGRAM_PASSWORD = credentials.instagramPassword;
+    }
+    
+    // Also check for APIFY_TOKEN and INSTALOADER_SESSION
+    if (!env.APIFY_TOKEN) {
+      env.APIFY_TOKEN = process.env.APIFY_TOKEN || '';
+    }
+    if (!env.INSTALOADER_SESSION) {
+      env.INSTALOADER_SESSION = process.env.INSTALOADER_SESSION || credentials?.instagramUsername || '';
+    }
+    
+    const pythonProcess = spawn('python3', [scriptPath, ...args], { env });
 
     pythonProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();

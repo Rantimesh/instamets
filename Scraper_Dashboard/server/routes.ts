@@ -196,6 +196,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/reels/:reelUrl/tag", async (req, res) => {
+    try {
+      const { reelUrl } = req.params;
+      const { tag } = req.body;
+      
+      if (!tag) {
+        return res.status(400).json({ error: "Tag is required" });
+      }
+
+      const decodedUrl = decodeURIComponent(reelUrl);
+      
+      // Find the CSV file containing this reel
+      const csvFiles = await findCSVFiles();
+      let updated = false;
+
+      for (const file of csvFiles) {
+        const reels = await parseCSV(file);
+        const reelIndex = reels.findIndex(r => r.url === decodedUrl);
+        
+        if (reelIndex !== -1) {
+          // Update the CSV file with the new tag
+          const fs = await import('fs/promises');
+          const csv = await fs.readFile(file, 'utf-8');
+          const lines = csv.split('\n');
+          
+          if (lines.length > reelIndex + 1) {
+            const columns = lines[reelIndex + 1].split(',');
+            // Add or update the manual_tags column (last column)
+            if (columns.length >= 12) {
+              columns[11] = tag;
+            } else {
+              columns.push(tag);
+            }
+            lines[reelIndex + 1] = columns.join(',');
+            await fs.writeFile(file, lines.join('\n'));
+            updated = true;
+            
+            // Invalidate cache
+            dataCache.invalidateAll();
+            break;
+          }
+        }
+      }
+
+      if (updated) {
+        res.json({ success: true, message: "Tag saved successfully" });
+      } else {
+        res.status(404).json({ error: "Reel not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to save tag" 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
