@@ -127,6 +127,26 @@ def scrape_user_metrics(username, urls):
         'engagement_rate', 'video_url', 'caption', 'hashtags', 'mentions', 'manual_tags'
     ]
 
+    # Read existing manual tags if file exists
+    existing_tags = {}
+    if os.path.exists(metrics_file):
+        try:
+            with open(metrics_file, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    video_url = row.get('video_url', '')
+                    manual_tag = row.get('manual_tags', '')
+                    if video_url and manual_tag:
+                        existing_tags[video_url] = manual_tag
+            print(f"📋 Preserved {len(existing_tags)} existing manual tags")
+        except Exception as e:
+            print(f"⚠️  Could not read existing tags: {e}")
+    
+    # Preserve manual tags for reels that already have them
+    for reel in reels_data:
+        if reel['video_url'] in existing_tags:
+            reel['manual_tags'] = existing_tags[reel['video_url']]
+
     with open(metrics_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
