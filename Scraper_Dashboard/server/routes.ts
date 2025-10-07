@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { runScraper, getScraperStatus } from "./scraper";
-import { findCSVFiles, parseCSV, extractInstagramId, parseFollowerData } from "./csv-ingestion";
+import { findCSVFiles, parseCSV, extractInstagramId, parseFollowerData, updateCSVTag } from "./csv-ingestion";
 import { dataCache } from "./cache";
 import { z } from "zod";
 import { scraperConfigSchema, instagramCredentialsSchema } from "@shared/schema";
@@ -213,26 +213,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const file of csvFiles) {
         const reels = await parseCSV(file);
-        const reelIndex = reels.findIndex(r => r.url === decodedUrl);
+        const reelExists = reels.some(r => r.url === decodedUrl);
         
-        if (reelIndex !== -1) {
-          // Update the CSV file with the new tag
-          const fs = await import('fs/promises');
-          const csv = await fs.readFile(file, 'utf-8');
-          const lines = csv.split('\n');
+        if (reelExists) {
+          // Update the CSV file with the new tag using proper CSV handling
+          updated = await updateCSVTag(file, decodedUrl, tag);
           
-          if (lines.length > reelIndex + 1) {
-            const columns = lines[reelIndex + 1].split(',');
-            // Add or update the manual_tags column (last column)
-            if (columns.length >= 12) {
-              columns[11] = tag;
-            } else {
-              columns.push(tag);
-            }
-            lines[reelIndex + 1] = columns.join(',');
-            await fs.writeFile(file, lines.join('\n'));
-            updated = true;
-            
+          if (updated) {
             // Invalidate cache
             dataCache.invalidateAll();
             break;

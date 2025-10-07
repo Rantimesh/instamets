@@ -17,6 +17,7 @@ export interface ReelMetricData {
   videoUrl: string;
   datePosted: string;
   instagramId: string;
+  manual_tags?: string;
 }
 
 export async function parseCSV(filePath: string): Promise<ReelMetricData[]> {
@@ -59,6 +60,7 @@ export async function parseCSV(filePath: string): Promise<ReelMetricData[]> {
         videoUrl: videoUrl,
         datePosted: row['date'] || '',
         instagramId: instagramId,
+        manual_tags: row['manual_tags'] || '',
       });
     }
   }
@@ -142,6 +144,65 @@ export async function findCSVFiles(): Promise<string[]> {
 export function extractInstagramId(url: string): string {
   const match = url.match(/\/reel\/([A-Za-z0-9_-]+)/);
   return match ? match[1] : '';
+}
+
+function escapeCSVField(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
+export async function updateCSVTag(filePath: string, reelUrl: string, tag: string): Promise<boolean> {
+  const content = await fs.readFile(filePath, 'utf-8');
+  const rows = parseCSVContent(content);
+  
+  if (rows.length < 2) {
+    return false;
+  }
+
+  const headers = rows[0];
+  const manualTagsIndex = headers.findIndex(h => h.toLowerCase().trim() === 'manual_tags');
+  
+  // Ensure manual_tags column exists
+  if (manualTagsIndex === -1) {
+    headers.push('manual_tags');
+  }
+
+  let updated = false;
+  const instagramIdToFind = extractInstagramId(reelUrl);
+
+  // Find and update the row
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const videoUrlIndex = headers.findIndex(h => h.toLowerCase().trim() === 'video_url');
+    
+    if (videoUrlIndex !== -1 && row[videoUrlIndex]) {
+      const rowInstagramId = extractInstagramId(row[videoUrlIndex]);
+      
+      if (rowInstagramId === instagramIdToFind) {
+        // Ensure row has enough columns
+        while (row.length < headers.length) {
+          row.push('');
+        }
+        
+        const tagIndex = manualTagsIndex !== -1 ? manualTagsIndex : headers.length - 1;
+        row[tagIndex] = tag;
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  if (updated) {
+    // Write back the CSV with proper escaping
+    const csvLines = rows.map(row => 
+      row.map(field => escapeCSVField(field)).join(',')
+    );
+    await fs.writeFile(filePath, csvLines.join('\n'));
+  }
+
+  return updated;
 }
 
 export interface FollowerData {
