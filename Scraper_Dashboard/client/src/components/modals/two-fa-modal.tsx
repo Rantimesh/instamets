@@ -87,9 +87,6 @@ export default function TwoFAModal({ open, onOpenChange }: TwoFAModalProps) {
               Cancel
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Didn't receive a code? <a href="#" className="text-primary hover:underline">Resend</a>
-          </p>
         </div>
       </DialogContent>
     </Dialog>

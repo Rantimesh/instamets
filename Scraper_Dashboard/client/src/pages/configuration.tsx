@@ -24,7 +24,6 @@ export default function Configuration() {
     targetUsername: "",
     scheduleFrequency: "24h",
     autoTag: false,
-    emailNotifications: false,
   });
 
   const [instagramCredentials, setInstagramCredentials] = useState({
@@ -250,27 +249,6 @@ export default function Configuration() {
                     </Select>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="autoTag"
-                        checked={formData.autoTag}
-                        onCheckedChange={(checked) => handleInputChange("autoTag", checked)}
-                        data-testid="switch-auto-tag"
-                      />
-                      <Label htmlFor="autoTag">Auto-tag new video types</Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="emailNotifications"
-                        checked={formData.emailNotifications}
-                        onCheckedChange={(checked) => handleInputChange("emailNotifications", checked)}
-                        data-testid="switch-email-notifications"
-                      />
-                      <Label htmlFor="emailNotifications">Email notifications</Label>
-                    </div>
-                  </div>
 
                   <div className="flex gap-3">
                     <Button 

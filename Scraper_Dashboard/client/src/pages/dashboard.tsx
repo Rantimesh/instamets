@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/sidebar";
 import StatCard from "@/components/stat-card";
 import FollowersChart from "@/components/followers-chart";
 import PerformanceChart from "@/components/performance-chart";
 import ReelsTable from "@/components/reels-table";
 import ScraperStatus from "@/components/scraper-status";
-import TwoFAModal from "@/components/modals/two-fa-modal";
 import CreatorSelector from "@/components/creator-selector";
 import ThemeToggle from "@/components/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +27,6 @@ interface FollowerData {
 
 export default function Dashboard() {
   const [timeFilter, setTimeFilter] = useState("all");
-  const [show2FAModal, setShow2FAModal] = useState(false);
   const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
 
   const { data: reels = [] } = useQuery<ReelData[]>({
@@ -37,7 +34,16 @@ export default function Dashboard() {
   });
 
   const { data: followerData = [] } = useQuery<FollowerData[]>({
+    queryKey: ['/api/followers/latest'],
+  });
+
+  const { data: allFollowerHistory = [] } = useQuery<FollowerData[]>({
     queryKey: ['/api/followers'],
+  });
+
+  const { data: scraperStatus } = useQuery({
+    queryKey: ['/api/scrape/status'],
+    refetchInterval: 3000,
   });
 
   const timeFilters = [
@@ -73,15 +79,76 @@ export default function Dashboard() {
     ? selectedCreatorData.followers.toLocaleString()
     : totalFollowers.toLocaleString();
 
-  const mockStats = {
-    followers: { current: displayFollowers, change: "+2.4% from last week", changeType: "positive" as const },
-    totalReels: { current: totalReels.toString(), change: "+12 this week", changeType: "positive" as const },
-    avgEngagement: { current: `${avgEngagement}%`, change: "-0.3% from last week", changeType: "negative" as const },
-    lastRun: { current: "2h ago", change: "Successful", changeType: "positive" as const },
+  // Calculate follower changes
+  const calculateFollowerChange = () => {
+    if (allFollowerHistory.length < 2) return { change: "No history", changeType: "neutral" as const };
+    
+    const sorted = [...allFollowerHistory].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    const latest = sorted[0];
+    const previous = sorted[1];
+    
+    if (selectedCreator) {
+      const latestCreator = sorted.find(s => s.username === selectedCreator);
+      const prevCreator = sorted.slice(1).find(s => s.username === selectedCreator);
+      
+      if (!latestCreator || !prevCreator) return { change: "New creator", changeType: "neutral" as const };
+      
+      const diff = latestCreator.followers - prevCreator.followers;
+      const changeType = diff > 0 ? "positive" as const : diff < 0 ? "negative" as const : "neutral" as const;
+      return { change: `${diff > 0 ? '+' : ''}${diff} from last run`, changeType };
+    }
+    
+    const latestTotal = sorted
+      .filter(s => s.timestamp === latest.timestamp)
+      .reduce((sum, s) => sum + s.followers, 0);
+    const prevTotal = sorted
+      .filter(s => s.timestamp === previous.timestamp)
+      .reduce((sum, s) => sum + s.followers, 0);
+    
+    const diff = latestTotal - prevTotal;
+    const changeType = diff > 0 ? "positive" as const : diff < 0 ? "negative" as const : "neutral" as const;
+    return { change: `${diff > 0 ? '+' : ''}${diff} from last run`, changeType };
   };
 
-  const runScraper = () => {
-    setShow2FAModal(true);
+  // Calculate last run time
+  const getLastRunTime = () => {
+    if (allFollowerHistory.length === 0) return "Never";
+    
+    const sorted = [...allFollowerHistory].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    const lastRun = new Date(sorted[0].timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - lastRun.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (diffHours > 24) {
+      const days = Math.floor(diffHours / 24);
+      return `${days}d ago`;
+    } else if (diffHours > 0) {
+      return `${diffHours}h ago`;
+    } else if (diffMins > 0) {
+      return `${diffMins}m ago`;
+    } else {
+      return "Just now";
+    }
+  };
+
+  const followerChange = calculateFollowerChange();
+  const lastRunTime = getLastRunTime();
+  const runStatus = scraperStatus?.status === 'running' ? 'Running...' : 'Completed';
+  const runStatusType = scraperStatus?.status === 'running' ? 'neutral' as const : 'positive' as const;
+
+  const mockStats = {
+    followers: { current: displayFollowers, change: followerChange.change, changeType: followerChange.changeType },
+    totalReels: { current: totalReels.toString(), change: `${filteredReels.length} in selected period`, changeType: "neutral" as const },
+    avgEngagement: { current: `${avgEngagement}%`, change: "Likes + Comments / Views", changeType: "neutral" as const },
+    lastRun: { current: lastRunTime, change: runStatus, changeType: runStatusType },
   };
 
   return (
@@ -119,13 +186,6 @@ export default function Dashboard() {
                 ))}
               </div>
               <ThemeToggle />
-              <Button
-                onClick={runScraper}
-                data-testid="button-run-scraper"
-              >
-                <i className="fas fa-play text-xs mr-2"></i>
-                Run Scraper
-              </Button>
             </div>
           </div>
         </header>
@@ -176,8 +236,6 @@ export default function Dashboard() {
           <ScraperStatus />
         </main>
       </div>
-
-      <TwoFAModal open={show2FAModal} onOpenChange={setShow2FAModal} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function Followers() {
   });
 
   const { data: followerData = [] } = useQuery<FollowerData[]>({
-    queryKey: ['/api/followers'],
+    queryKey: ['/api/followers/latest'],
   });
 
   const timeFilters = [

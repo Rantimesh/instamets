@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import PerformanceChart from "@/components/performance-chart";
 import ReelsTable from "@/components/reels-table";
 import CreatorSelector from "@/components/creator-selector";
@@ -14,20 +16,40 @@ interface ReelData {
   likes: number;
   comments: number;
   datePosted: string;
+  hashtags?: string;
+  manual_tags?: string;
 }
 
 export default function ReelAnalytics() {
   const [timeFilter, setTimeFilter] = useState("all");
   const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
+  const [selectedVideoType, setSelectedVideoType] = useState<string>("all");
 
   const { data: reels = [] } = useQuery<ReelData[]>({
     queryKey: ['/api/reels'],
   });
 
+  // Extract unique video types from manual_tags
+  const videoTypes = Array.from(
+    new Set(
+      reels
+        .map(r => r.manual_tags)
+        .filter((tag): tag is string => Boolean(tag))
+        .flatMap((tag: string) => tag.split(',').map(t => t.trim()))
+        .filter(Boolean)
+    )
+  ).sort();
+
   let filteredReels = filterReelsByDate(reels, timeFilter);
   
   if (selectedCreator) {
     filteredReels = filteredReels.filter(r => r.username === selectedCreator);
+  }
+
+  if (selectedVideoType && selectedVideoType !== "all") {
+    filteredReels = filteredReels.filter(r => 
+      r.manual_tags?.split(',').map(t => t.trim()).includes(selectedVideoType)
+    );
   }
 
   const totalReels = filteredReels.length;
@@ -45,8 +67,24 @@ export default function ReelAnalytics() {
     return num.toString();
   };
 
+  // Extract top hashtags from filtered reels
+  const hashtagCounts = new Map<string, number>();
+  filteredReels.forEach(reel => {
+    if (reel.hashtags) {
+      const tags = reel.hashtags.split(',').map(t => t.trim()).filter(Boolean);
+      tags.forEach(tag => {
+        hashtagCounts.set(tag, (hashtagCounts.get(tag) || 0) + 1);
+      });
+    }
+  });
+  
+  const topHashtags = Array.from(hashtagCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([tag, count]) => ({ tag, count }));
+
   const stats = [
-    { label: "Total Reels", value: totalReels.toString(), change: "All tracked reels", icon: "📹" },
+    { label: "Total Reels", value: totalReels.toString(), change: selectedVideoType !== "all" ? `Type: ${selectedVideoType}` : "All tracked reels", icon: "📹" },
     { label: "Avg Views", value: formatNumber(avgViews), change: "Per reel average", icon: "👁️" },
     { label: "Avg Engagement", value: `${avgEngagement}%`, change: "Likes + Comments / Views", icon: "💬" },
     { label: "Top Performer", value: formatNumber(topReel?.views || 0), change: topReel?.username ? `@${topReel.username}` : "No data", icon: "🏆" },
@@ -54,6 +92,15 @@ export default function ReelAnalytics() {
   ];
 
   const timeFilters = ["7d", "14d", "30d", "90d", "180d", "YTD", "All"];
+
+  const handleDownload = () => {
+    const params = new URLSearchParams();
+    if (selectedCreator) {
+      params.append('creator', selectedCreator);
+    }
+    
+    window.open(`/api/analytics/download?${params.toString()}`, '_blank');
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -68,11 +115,22 @@ export default function ReelAnalytics() {
                 {selectedCreator ? "Viewing individual creator analytics" : "Detailed performance metrics for all creators"}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <CreatorSelector 
                 selectedCreator={selectedCreator} 
                 onCreatorChange={setSelectedCreator}
               />
+              <Select value={selectedVideoType} onValueChange={setSelectedVideoType}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Video Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {videoTypes.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex bg-muted rounded-lg p-1">
                 {timeFilters.map((filter) => (
                   <button
@@ -88,6 +146,10 @@ export default function ReelAnalytics() {
                   </button>
                 ))}
               </div>
+              <Button onClick={handleDownload} variant="outline" size="sm">
+                <i className="fas fa-download mr-2"></i>
+                Download CSV
+              </Button>
               <ThemeToggle />
             </div>
           </div>
@@ -120,8 +182,26 @@ export default function ReelAnalytics() {
                 </CardContent>
               </Card>
             </div>
-            <div>
+            <div className="space-y-6">
               <PerformanceChart timeFilter={timeFilter} selectedCreator={selectedCreator} />
+              
+              {topHashtags.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Hashtags</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {topHashtags.map(({ tag, count }) => (
+                        <div key={tag} className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">#{tag}</span>
+                          <span className="text-sm font-medium">{count} reels</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 
