@@ -25,7 +25,7 @@ interface Reel {
 export default function ReelsTable({ timeFilter, selectedCreator }: ReelsTableProps) {
   const [videoType, setVideoType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 20;
 
   const { data: apiReels = [], isLoading } = useQuery<Reel[]>({
     queryKey: ['/api/reels'],

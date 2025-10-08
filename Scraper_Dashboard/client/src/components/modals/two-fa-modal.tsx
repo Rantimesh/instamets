@@ -32,7 +32,6 @@ export default function TwoFAModal({ open, onOpenChange }: TwoFAModalProps) {
   const handleSubmit = () => {
     const fullCode = code.join('');
     if (fullCode.length === 6) {
-      console.log('2FA code submitted:', fullCode);
       onOpenChange(false);
       setCode(['', '', '', '', '', '']);
     }

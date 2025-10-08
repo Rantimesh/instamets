@@ -26,6 +26,7 @@ interface ReelData {
   caption: string;
   videoUrl: string;
   datePosted: string;
+  manual_tags?: string;
 }
 
 export default function VideoTagging() {
@@ -52,8 +53,8 @@ export default function VideoTagging() {
   const previousTags = Array.from(
     new Set(
       reels
-        .map(r => (r as any).manual_tags || (r as any).manualTags)
-        .filter(Boolean)
+        .map(r => r.manual_tags)
+        .filter((tag): tag is string => Boolean(tag))
         .flatMap((tag: string) => tag.split(',').map(t => t.trim()))
         .filter(Boolean)
     )
@@ -64,8 +65,9 @@ export default function VideoTagging() {
     
     setIsSaving(true);
     try {
-      const encodedUrl = encodeURIComponent(selectedReel.url);
-      const response = await fetch(`/api/reels/${encodedUrl}/tag`, {
+      // Use videoUrl (CDN URL) as unique identifier instead of the reconstructed url
+      const encodedVideoUrl = encodeURIComponent(selectedReel.videoUrl);
+      const response = await fetch(`/api/reels/${encodedVideoUrl}/tag`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag: videoType })
@@ -74,13 +76,14 @@ export default function VideoTagging() {
       const data = await response.json();
       
       if (response.ok) {
+        // Invalidate and wait for refetch to complete
+        await queryClient.invalidateQueries({ queryKey: ['/api/reels'] });
+        await queryClient.refetchQueries({ queryKey: ['/api/reels'] });
+        
         toast({
           title: "Success",
           description: "Tag saved successfully",
         });
-        
-        // Refresh the reels data
-        queryClient.invalidateQueries({ queryKey: ['/api/reels'] });
         
         setSelectedReel(null);
         setVideoType("");
@@ -104,7 +107,7 @@ export default function VideoTagging() {
     return num.toString();
   };
 
-  const untaggedCount = filteredReels.length;
+  const untaggedCount = filteredReels.filter(r => !r.manual_tags || r.manual_tags.trim() === '').length;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -168,8 +171,13 @@ export default function VideoTagging() {
               ) : (
                 <i className="fas fa-video text-6xl text-muted-foreground/20"></i>
               )}
-              <div className="absolute bottom-2 right-2">
+              <div className="absolute bottom-2 right-2 flex flex-col gap-1 items-end">
                 <Badge variant="secondary">@{reel.username}</Badge>
+                {reel.manual_tags && reel.manual_tags.trim() && (
+                  <Badge variant="default" className="bg-primary">
+                    {reel.manual_tags}
+                  </Badge>
+                )}
               </div>
             </div>
             <CardContent className="p-4">

@@ -51,12 +51,20 @@ export default function PerformanceChart({ timeFilter, selectedCreator }: Perfor
     return stats.views > 0 ? ((stats.likes + stats.comments) / stats.views * 100) : 0;
   };
 
+  const chartColors = [
+    'bg-chart-1',
+    'bg-chart-2', 
+    'bg-chart-3',
+    'bg-chart-4',
+    'bg-chart-5'
+  ];
+
   const videoTypes = Object.entries(hashtagMetrics)
-    .map(([name, stats]) => ({
+    .map(([name, stats], index) => ({
       name: `#${name}`,
       value: getMetricValue(stats),
       count: stats.count,
-      color: `bg-chart-${(Object.keys(hashtagMetrics).indexOf(name) % 5) + 1}` as const,
+      color: chartColors[index % chartColors.length],
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);

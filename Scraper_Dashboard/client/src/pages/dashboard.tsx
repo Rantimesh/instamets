@@ -81,7 +81,6 @@ export default function Dashboard() {
   };
 
   const runScraper = () => {
-    console.log('Running scraper...');
     setShow2FAModal(true);
   };
 
@@ -168,7 +167,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <FollowersChart timeFilter={timeFilter} />
+            <FollowersChart timeFilter={timeFilter} selectedCreator={selectedCreator} />
             <PerformanceChart timeFilter={timeFilter} selectedCreator={selectedCreator} />
           </div>
 

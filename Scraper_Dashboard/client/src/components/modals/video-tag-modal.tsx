@@ -21,7 +21,6 @@ export default function VideoTagModal({ open, onOpenChange, reel, onTagSaved }: 
       return;
     }
 
-    console.log('Tag saved:', { videoType, notes });
     onTagSaved?.();
     onOpenChange(false);
     setVideoType("");
