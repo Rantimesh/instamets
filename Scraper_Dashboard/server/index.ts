@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { initializeScheduler } from "./scheduler";
 
 const app = express();
 app.use(express.json());
@@ -53,10 +54,13 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
+  // Initialize the scheduler
+  await initializeScheduler();
+
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
-    host: "127.0.0.1", // Changed from "0.0.0.0" to "127.0.0.1"
+    host: "0.0.0.0",
   }, () => {
     log(`serving on port ${port}`);
   });

@@ -2,12 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { runScraper, getScraperStatus } from "./scraper";
-import { findCSVFiles, parseCSV, extractInstagramId, parseFollowerData, updateCSVTag } from "./csv-ingestion";
+import { findCSVFiles, parseCSV, extractInstagramId, parseFollowerData, parseLatestFollowerData, updateCSVTag } from "./csv-ingestion";
 import { dataCache } from "./cache";
 import { z } from "zod";
 import { scraperConfigSchema, instagramCredentialsSchema } from "@shared/schema";
 import path from "path";
 import { fileURLToPath } from "url";
+import { updateSchedule } from "./scheduler";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,10 +129,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/followers/latest", async (req, res) => {
+    try {
+      const creator = req.query.creator as string | undefined;
+      
+      const followerData = await dataCache.get(
+        'followers:latest',
+        async () => await parseLatestFollowerData(),
+        [path.resolve(__dirname, '..', '..', 'data', 'scrape_history.csv')]
+      );
+
+      // Filter by creator if specified
+      const filteredData = creator
+        ? followerData.filter((f: any) => f.username === creator)
+        : followerData;
+
+      res.json(filteredData);
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to fetch latest follower data" 
+      });
+    }
+  });
+
   app.post("/api/config", async (req, res) => {
     try {
       const validatedConfig = scraperConfigSchema.parse(req.body);
       const config = await storage.saveConfig(validatedConfig);
+      
+      // Update scheduler with new configuration
+      await updateSchedule(config.scheduleFrequency, config.targetUsername);
+      
       res.json({ success: true, config });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -153,8 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(config || {
         targetUsername: "",
         scheduleFrequency: "24h",
-        autoTag: false,
-        emailNotifications: false
+        autoTag: false
       });
     } catch (error) {
       res.status(500).json({ 
@@ -205,21 +232,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Tag is required" });
       }
 
-      const decodedVideoUrl = decodeURIComponent(videoUrl);
+      // Decode URL and HTML entities
+      let decodedVideoUrl = decodeURIComponent(videoUrl);
+      // Replace HTML entities like &amp; with &
+      decodedVideoUrl = decodedVideoUrl.replace(/&amp;/g, '&');
+      console.log('Tagging reel with videoUrl:', decodedVideoUrl);
       
       // Find the CSV file containing this reel by matching the video_url
       const csvFiles = await findCSVFiles();
       let updated = false;
+      let foundReel = false;
 
       for (const file of csvFiles) {
         const reels = await parseCSV(file);
-        const reelExists = reels.some(r => r.videoUrl === decodedVideoUrl);
+        const matchingReel = reels.find(r => r.videoUrl === decodedVideoUrl);
         
-        if (reelExists) {
+        if (matchingReel) {
+          foundReel = true;
+          console.log('Found reel in file:', file);
           // Update the CSV file with the new tag using video_url as identifier
           updated = await updateCSVTag(file, decodedVideoUrl, tag);
           
           if (updated) {
+            console.log('Tag updated successfully');
             // Invalidate cache immediately
             dataCache.invalidateAll();
             // Small delay to ensure file system updates modification time
@@ -229,14 +264,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      if (!foundReel) {
+        console.log('Reel not found. Checked files:', csvFiles);
+        console.log('Looking for videoUrl:', decodedVideoUrl);
+      }
+
       if (updated) {
         res.json({ success: true, message: "Tag saved successfully" });
       } else {
-        res.status(404).json({ error: "Reel not found" });
+        res.status(404).json({ error: "Reel not found", videoUrl: decodedVideoUrl });
       }
     } catch (error) {
+      console.error('Error in tag route:', error);
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to save tag" 
+      });
+    }
+  });
+
+  app.get("/api/analytics/download", async (req, res) => {
+    try {
+      const creator = req.query.creator as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+      
+      // Fetch reels and follower data
+      const csvFiles = await findCSVFiles();
+      let reels: any[] = [];
+      
+      for (const file of csvFiles) {
+        const fileReels = await parseCSV(file);
+        reels.push(...fileReels);
+      }
+      
+      const followerData = await parseFollowerData();
+      
+      // Filter by creator if specified
+      if (creator) {
+        reels = reels.filter(r => r.username === creator);
+      }
+      
+      // Filter by date range if specified
+      if (startDate || endDate) {
+        reels = reels.filter(r => {
+          const reelDate = new Date(r.datePosted);
+          if (startDate && reelDate < new Date(startDate)) return false;
+          if (endDate && reelDate > new Date(endDate)) return false;
+          return true;
+        });
+      }
+      
+      // Build CSV content
+      let csvContent = 'Username,Date Posted,Views,Likes,Comments,Engagement Rate,Video Type,Hashtags,Video URL\n';
+      
+      reels.forEach(reel => {
+        const engagementRate = reel.views > 0 
+          ? (((reel.likes + reel.comments) / reel.views) * 100).toFixed(2)
+          : '0.00';
+        
+        csvContent += `${reel.username},${reel.datePosted},${reel.views},${reel.likes},${reel.comments},${engagementRate}%,"${reel.manual_tags || ''}","${reel.hashtags || ''}","${reel.videoUrl}"\n`;
+      });
+      
+      // Add follower summary at the end
+      csvContent += '\n\nFollower History\n';
+      csvContent += 'Username,Followers,Reels Scraped,Timestamp\n';
+      
+      const creatorFollowers = creator 
+        ? followerData.filter(f => f.username === creator)
+        : followerData;
+        
+      creatorFollowers.forEach(f => {
+        csvContent += `${f.username},${f.followers},${f.reelsScraped},${f.timestamp}\n`;
+      });
+      
+      // Set headers for download
+      const filename = creator 
+        ? `${creator}_analytics_${new Date().toISOString().split('T')[0]}.csv`
+        : `all_creators_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csvContent);
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to generate analytics download" 
       });
     }
   });

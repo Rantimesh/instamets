@@ -220,7 +220,7 @@ export async function parseFollowerData(): Promise<FollowerData[]> {
     }
 
     const headers = rows[0].map(h => h.trim().replace(/^"|"$/g, ''));
-    const data: FollowerData[] = [];
+    const allData: FollowerData[] = [];
 
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
@@ -230,7 +230,7 @@ export async function parseFollowerData(): Promise<FollowerData[]> {
           row[header] = values[index];
         });
 
-        data.push({
+        allData.push({
           username: row['username'] || '',
           followers: parseInt(row['followers'] || '0'),
           reelsScraped: parseInt(row['reels_scraped'] || '0'),
@@ -239,9 +239,23 @@ export async function parseFollowerData(): Promise<FollowerData[]> {
       }
     }
 
-    return data;
+    return allData;
   } catch (error) {
     console.error('Error reading scrape_history.csv:', error);
     return [];
   }
+}
+
+export async function parseLatestFollowerData(): Promise<FollowerData[]> {
+  const allData = await parseFollowerData();
+  const latestByCreator = new Map<string, FollowerData>();
+  
+  for (const entry of allData) {
+    const existing = latestByCreator.get(entry.username);
+    if (!existing || entry.timestamp > existing.timestamp) {
+      latestByCreator.set(entry.username, entry);
+    }
+  }
+
+  return Array.from(latestByCreator.values());
 }

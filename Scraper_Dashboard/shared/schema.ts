@@ -72,7 +72,6 @@ export const scraperConfigSchema = z.object({
   targetUsername: z.string(),
   scheduleFrequency: z.string(),
   autoTag: z.boolean(),
-  emailNotifications: z.boolean(),
 });
 
 export const instagramCredentialsSchema = z.object({
