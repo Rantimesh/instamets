@@ -153,7 +153,7 @@ function escapeCSVField(field: string): string {
   return field;
 }
 
-export async function updateCSVTag(filePath: string, reelUrl: string, tag: string): Promise<boolean> {
+export async function updateCSVTag(filePath: string, videoUrl: string, tag: string): Promise<boolean> {
   const content = await fs.readFile(filePath, 'utf-8');
   const rows = parseCSVContent(content);
   
@@ -170,27 +170,22 @@ export async function updateCSVTag(filePath: string, reelUrl: string, tag: strin
   }
 
   let updated = false;
-  const instagramIdToFind = extractInstagramId(reelUrl);
+  const videoUrlIndex = headers.findIndex(h => h.toLowerCase().trim() === 'video_url');
 
-  // Find and update the row
+  // Find and update the row by matching the unique video_url (CDN URL)
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const videoUrlIndex = headers.findIndex(h => h.toLowerCase().trim() === 'video_url');
     
-    if (videoUrlIndex !== -1 && row[videoUrlIndex]) {
-      const rowInstagramId = extractInstagramId(row[videoUrlIndex]);
-      
-      if (rowInstagramId === instagramIdToFind) {
-        // Ensure row has enough columns
-        while (row.length < headers.length) {
-          row.push('');
-        }
-        
-        const tagIndex = manualTagsIndex !== -1 ? manualTagsIndex : headers.length - 1;
-        row[tagIndex] = tag;
-        updated = true;
-        break;
+    if (videoUrlIndex !== -1 && row[videoUrlIndex] === videoUrl) {
+      // Ensure row has enough columns
+      while (row.length < headers.length) {
+        row.push('');
       }
+      
+      const tagIndex = manualTagsIndex !== -1 ? manualTagsIndex : headers.length - 1;
+      row[tagIndex] = tag;
+      updated = true;
+      break;
     }
   }
 

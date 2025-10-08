@@ -95,7 +95,11 @@ async function runPythonScript(
       env.INSTALOADER_SESSION = process.env.INSTALOADER_SESSION || credentials?.instagramUsername || '';
     }
     
-    const pythonProcess = spawn('python3', [scriptPath, ...args], { env });
+    const projectRoot = path.resolve(__dirname, '..', '..');
+    const pythonProcess = spawn('python3', [scriptPath, ...args], { 
+      env,
+      cwd: projectRoot  // Set working directory to project root
+    });
 
     pythonProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();

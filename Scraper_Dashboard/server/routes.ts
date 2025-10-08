@@ -196,32 +196,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/reels/:reelUrl/tag", async (req, res) => {
+  app.patch("/api/reels/:videoUrl(*)/tag", async (req, res) => {
     try {
-      const { reelUrl } = req.params;
+      const { videoUrl } = req.params;
       const { tag } = req.body;
       
       if (!tag) {
         return res.status(400).json({ error: "Tag is required" });
       }
 
-      const decodedUrl = decodeURIComponent(reelUrl);
+      const decodedVideoUrl = decodeURIComponent(videoUrl);
       
-      // Find the CSV file containing this reel
+      // Find the CSV file containing this reel by matching the video_url
       const csvFiles = await findCSVFiles();
       let updated = false;
 
       for (const file of csvFiles) {
         const reels = await parseCSV(file);
-        const reelExists = reels.some(r => r.url === decodedUrl);
+        const reelExists = reels.some(r => r.videoUrl === decodedVideoUrl);
         
         if (reelExists) {
-          // Update the CSV file with the new tag using proper CSV handling
-          updated = await updateCSVTag(file, decodedUrl, tag);
+          // Update the CSV file with the new tag using video_url as identifier
+          updated = await updateCSVTag(file, decodedVideoUrl, tag);
           
           if (updated) {
-            // Invalidate cache
+            // Invalidate cache immediately
             dataCache.invalidateAll();
+            // Small delay to ensure file system updates modification time
+            await new Promise(resolve => setTimeout(resolve, 10));
             break;
           }
         }
