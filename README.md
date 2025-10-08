@@ -26,27 +26,17 @@ A full-stack dashboard for scraping and analyzing Instagram reels data. The syst
 - **npm** or **yarn**
 - **Chromium** browser (for Playwright)
 
-### API Keys Required
+### Credentials
 
-1. **Instagram Account** - Username and password for scraping
-2. **Apify API Token** - Get from [Apify.com](https://apify.com/)
-3. **Instaloader Session** - Instagram username for session management
+**⚠️ IMPORTANT:** Credentials are hardcoded in the Python scripts for local use:
+- `part_1_scrape_urls.py` contains Instagram username and password
+- `part_2_get_metrics.py` contains Apify API token and Instaloader session
+
+**Do not share these files or commit them to public repositories.**
 
 ## 🚀 Setup Instructions
 
-### Option 1: Running on Replit (Current Environment)
-
-The dashboard is already configured and running! Just:
-
-1. Set your environment secrets in the Replit Secrets tab:
-   - `INSTAGRAM_USERNAME`
-   - `INSTAGRAM_PASSWORD`
-   - `APIFY_TOKEN`
-   - `INSTALOADER_SESSION`
-
-2. The dashboard runs automatically at port 5000
-
-### Option 2: Running on Your Local Computer
+### Running on Your Local Computer
 
 #### 1. Clone the Repository
 
@@ -77,21 +67,10 @@ sudo apt-get install libnss3 libnspr4 libatk1.0-0 \
   libgbm1 libpango-1.0-0 libcairo2 libasound2
 ```
 
-#### 4. Configure Environment Variables
+#### 4. Start the Dashboard
 
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and add your credentials:
-```bash
-INSTAGRAM_USERNAME=your_instagram_username
-INSTAGRAM_PASSWORD=your_instagram_password
-APIFY_TOKEN=your_apify_token
-INSTALOADER_SESSION=your_instagram_username
-```
-
-#### 5. Start the Dashboard
+**Note:** Credentials are already hardcoded in `part_1_scrape_urls.py` and `part_2_get_metrics.py`. 
+If you need to change them, edit these files directly.
 
 ```bash
 cd Scraper_Dashboard
@@ -114,10 +93,7 @@ The dashboard will be available at `http://localhost:5000`
 #### Step 1: Scrape Reel URLs
 
 ```bash
-# Make sure your .env file is loaded or export variables:
-export INSTAGRAM_USERNAME=your_username
-export INSTAGRAM_PASSWORD=your_password
-
+# Credentials are hardcoded in the script
 python3 part_1_scrape_urls.py
 ```
 
@@ -130,7 +106,7 @@ This will:
 #### Step 2: Fetch Metrics
 
 ```bash
-export APIFY_TOKEN=your_token
+# Credentials are hardcoded in the script
 python3 part_2_get_metrics.py
 ```
 
@@ -234,13 +210,13 @@ TARGET_USERS = [
 
 ### Issue: Instagram login fails
 **Solution**: 
-- Verify credentials in `.env`
+- Verify hardcoded credentials in `part_1_scrape_urls.py`
 - Complete 2FA if prompted in the browser
 - Check if Instagram is blocking automated access
 
 ### Issue: Apify scraping fails
 **Solution**:
-- Verify `APIFY_TOKEN` is correct
+- Verify hardcoded `APIFY_TOKEN` in `part_2_get_metrics.py` is correct
 - Check Apify account has sufficient credits
 - Ensure URLs are valid Instagram reel links
 
@@ -265,10 +241,11 @@ TARGET_USERS = [
 
 ## 🔒 Security
 
-- Never commit `.env` file to version control
+**⚠️ WARNING:** This project contains hardcoded credentials for local use only.
+- **Do not** commit `part_1_scrape_urls.py` or `part_2_get_metrics.py` to public repositories
+- **Do not** share these files with others
 - Keep Instagram credentials secure
 - Rotate API tokens periodically
-- Use Replit Secrets for sensitive data in production
 
 ## 📄 License
 

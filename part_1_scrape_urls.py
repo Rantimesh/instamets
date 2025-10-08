@@ -12,10 +12,10 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# CONFIGURATION FROM ENVIRONMENT VARIABLES
-INSTAGRAM_USERNAME = os.getenv('INSTAGRAM_USERNAME', '')
-INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD', '')
-
+# CONFIGURATION - HARDCODED FOR LOCAL USE
+# WARNING: These credentials are hardcoded. Do not share this file or commit to public repositories.
+INSTAGRAM_USERNAME = 'zebra.4500860'
+INSTAGRAM_PASSWORD = 'Meshack@7474'
 
 # LIST OF TARGET USERS (Maximum 10) - can be passed as argument
 import argparse
@@ -42,24 +42,10 @@ async def save_storage_state(context):
     print(f"💾 Session state saved to {SESSION_FILE}")
 
 async def login_with_2fa(page):
-    """Handles the Instagram login process, including 2FA and the 'Save Info' challenge."""
+    """Handles the Instagram login process, including 2FA."""
     print("🔐 Attempting to log in to Instagram...")
-    try:
-        await page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=45000)
-    except Exception as e:
-        print(f"⚠️ Warning: Navigating to the login page timed out. Trying to continue... Error: {e}")
-        if "instagram.com" in page.url:
-            print(f"📍 Current URL is: {page.url}. Proceeding with caution.")
-        else:
-            print("❌ Failed to reach an Instagram page. Please check your network or try again.")
-            return False
-
-    try:
-        await page.wait_for_selector("input[name='username']", timeout=20000)
-    except Exception as e:
-        print(f"❌ Could not find the username input field. The page might be blocked or different. Error: {e}")
-        return False
-
+    await page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=45000)
+    await page.wait_for_selector("input[name='username']", timeout=20000)
     await page.fill("input[name='username']", INSTAGRAM_USERNAME)
     await page.fill("input[name='password']", INSTAGRAM_PASSWORD)
     await page.click("button[type='submit']")
@@ -67,56 +53,43 @@ async def login_with_2fa(page):
     await page.wait_for_timeout(5000)
 
     # --- Check for 2FA ---
+    print("🔍 Checking for 2FA requirement...")
     if await page.locator("input[name='verificationCode']").is_visible():
         print("🔐 2FA required.")
-        print("⏸️ Waiting 120 seconds for you to manually enter the 2FA code in the browser...")
-        print("📝 Please enter the verification code in the browser window that opened.")
+        print("📝 Please enter your 2FA code in the console:")
+        
+        # Use asyncio's input method that works better in headless mode
+        loop = asyncio.get_event_loop()
+        verification_code = await loop.run_in_executor(None, input, "Enter 2FA code: ")
+        
+        await page.fill("input[name='verificationCode']", verification_code)
+        await page.click("button[type='submit']")
+        print("⏳ Verifying 2FA code...")
+        await page.wait_for_timeout(5000)
+        
+        # Check if 2FA was successful
         try:
-            await page.wait_for_selector('svg[aria-label="Search"]', timeout=120000)
+            await page.wait_for_selector('svg[aria-label="Search"]', timeout=30000)
             print("✅ 2FA completed successfully.")
         except:
-            print("❌ 2FA timeout. Please try again.")
+            print("❌ 2FA verification failed. Please check your code and try again.")
             return False
 
-    # --- After 2FA or regular login, check for "Save Info" button ---
-    print("🔍 Actively searching for 'Save Info' button...")
-    save_info_found = False
-    selectors_to_try = [
-        "button:has-text('Save Info')",
-        "button:has-text('Save info')",
-        "div[role='button'] >> text=Save Info",
-        "button:has-text('Not Now')"
-    ]
-
-    for selector in selectors_to_try:
-        print(f"🔍 Trying selector: {selector}")
-        try:
-            save_info_button = page.locator(selector)
-            await save_info_button.wait_for(state="visible", timeout=10000)
-            print(f"✅ Button found with selector '{selector}'! Clicking it now...")
-            await save_info_button.click()
-            save_info_found = True
-            await page.wait_for_timeout(3000)
-            break
-        except:
-            print(f"ℹ️ Selector '{selector}' did not find the button.")
-
-    if not save_info_found:
-        print("ℹ️ 'Save Info' button was not found with any selector. It might not be present this time.")
+    # --- After 2FA or regular login, navigate to Instagram homepage ---
+    print("🔍 Navigating to Instagram homepage after login...")
+    await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+    await page.wait_for_timeout(3000)
+    print("✅ Successfully navigated to Instagram homepage.")
 
     # --- Final check to confirm login was successful ---
     print("🔍 Performing final check for login success...")
-    try:
-        await page.wait_for_timeout(3000)
-        search_icon = page.locator('svg[aria-label="Search"]').first
-        if await search_icon.is_visible():
-            print("✅ Logged in successfully.")
-            return True
-        else:
-            print("❌ Login failed. The search bar is not visible.")
-            return False
-    except:
-        print("❌ Login failed. The final check for the search bar failed.")
+    await page.wait_for_timeout(3000)
+    search_icon = page.locator('svg[aria-label="Search"]').first
+    if await search_icon.is_visible():
+        print("✅ Logged in successfully.")
+        return True
+    else:
+        print("❌ Login failed. The search bar is not visible.")
         return False
 
 async def scroll_to_collect_reel_urls(page):
@@ -213,27 +186,19 @@ async def scrape_reels():
     print(f"🎯 Will scrape {len(TARGET_USERS)} user(s): {', '.join(TARGET_USERS)}\n")
     
     async with async_playwright() as p:
-
         print("🚀 Launching browser...")
         
-
-
-
-
-
-
-
         # Use Playwright's built-in browser (works on Windows)
         browser = await p.chromium.launch(
-
-
-            headless=False,  # Set to True if you don't want to see the browser
+            headless=True,
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
-
-
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-default-apps'
             ]
         )
 
@@ -258,8 +223,13 @@ async def scrape_reels():
         })
 
         page = await context.new_page()
-        await page.goto("https://www.instagram.com/", wait_until="domcontentloaded")
-        await page.wait_for_timeout(3000)
+        try:
+            await page.goto("https://www.instagram.com/", wait_until="networkidle", timeout=60000)
+            await page.wait_for_timeout(3000)
+        except Exception as e:
+            print(f"⚠️ Warning: Initial navigation failed: {e}")
+            print("🔄 Retrying...")
+            await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=60000)
 
         search_icon = page.locator('svg[aria-label="Search"]').first
         if not await search_icon.is_visible():
@@ -270,36 +240,6 @@ async def scrape_reels():
             await save_storage_state(context)
         else:
             print("✅ Session is valid. Logged in successfully.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         # Scrape each user
         results = {}

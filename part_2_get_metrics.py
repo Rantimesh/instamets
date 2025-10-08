@@ -12,9 +12,10 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# CONFIGURATION FROM ENVIRONMENT VARIABLES
-APIFY_TOKEN = os.getenv('APIFY_TOKEN', '')
-INSTALOADER_SESSION = os.getenv('INSTALOADER_SESSION', 'zebra.4500860')
+# CONFIGURATION - HARDCODED FOR LOCAL USE
+# WARNING: These credentials are hardcoded. Do not share this file or commit to public repositories.
+APIFY_TOKEN = 'apifytoken'
+INSTALOADER_SESSION = 'zebra.4500860'
 
 # Ensure output folders exist
 os.makedirs("data", exist_ok=True)
